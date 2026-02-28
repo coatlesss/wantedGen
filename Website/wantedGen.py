@@ -282,18 +282,79 @@ INDEX_HTML = """
       z-index:0;
     }
 
+    .desert-floor{
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 170px;
+      background:
+        radial-gradient(700px 120px at 20% 10%, rgba(255,240,205,.18), transparent 60%),
+        radial-gradient(900px 140px at 80% 15%, rgba(120,72,28,.12), transparent 58%),
+        linear-gradient(180deg, rgba(120,76,28,.08) 0%, rgba(167,113,52,.34) 18%, rgba(198,144,74,.78) 58%, rgba(168,111,48,.96) 100%);
+      border-top: 1px solid rgba(86,49,16,.18);
+      box-shadow: inset 0 16px 30px rgba(255,228,176,.08);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .desert-floor:before{
+      content:"";
+      position:absolute;
+      left:0;
+      right:0;
+      top:-22px;
+      height: 42px;
+      background:
+        radial-gradient(60px 18px at 4% 100%, rgba(193,138,70,.92), transparent 70%),
+        radial-gradient(90px 20px at 14% 100%, rgba(205,149,77,.9), transparent 72%),
+        radial-gradient(72px 18px at 27% 100%, rgba(186,131,64,.88), transparent 70%),
+        radial-gradient(96px 22px at 41% 100%, rgba(211,158,86,.88), transparent 72%),
+        radial-gradient(80px 18px at 56% 100%, rgba(190,136,68,.9), transparent 70%),
+        radial-gradient(88px 20px at 71% 100%, rgba(206,152,80,.86), transparent 72%),
+        radial-gradient(68px 16px at 86% 100%, rgba(187,132,66,.88), transparent 70%),
+        radial-gradient(82px 18px at 97% 100%, rgba(204,149,76,.84), transparent 72%);
+      opacity: .95;
+    }
+
     /* cactus png decorations */
     .cactus{
       position: fixed;
-      bottom: -10px;
-      width: 260px;
-      opacity: .26;
+      bottom: 6px;
+      width: 320px;
+      opacity: .52;
       pointer-events:none;
       z-index:0;
-      filter: drop-shadow(0 10px 25px rgba(0,0,0,.45));
+      filter: drop-shadow(0 12px 28px rgba(0,0,0,.38)) saturate(1.08) contrast(1.08);
     }
-    .cactus.left{ left: 10px; }
-    .cactus.right{ right: 10px; transform: scaleX(-1); }
+    .cactus.left{ left: 18px; }
+    .cactus.right{ right: 18px; transform: scaleX(-1); }
+
+    .tumbleweed{
+      position: fixed;
+      left: -140px;
+      bottom: 26px;
+      width: 96px;
+      height: 96px;
+      pointer-events: none;
+      z-index: 0;
+      opacity: .88;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 12px rgba(69,38,12,.26));
+      animation: tumble-roll 28s linear infinite;
+    }
+
+    @keyframes tumble-roll{
+      0%{
+        transform: translateX(0) rotate(0deg);
+      }
+      50%{
+        transform: translateX(calc(50vw - 40px)) rotate(540deg);
+      }
+      100%{
+        transform: translateX(calc(100vw + 180px)) rotate(1080deg);
+      }
+    }
 
     .wrap{
       position:relative;
@@ -590,10 +651,12 @@ INDEX_HTML = """
 </head>
 <body>
   <div class="haze"></div>
+  <div class="desert-floor"></div>
 
   <!-- cactus pngs (put them in static/assets/) -->
   <img class="cactus left"  src="/static/assets/cactus.webp"  alt="cactus left">
   <img class="cactus right" src="/static/assets/cactus.webp" alt="cactus right">
+  <img class="tumbleweed" src="/static/assets/tumbleweed.png" alt="" aria-hidden="true">
 
   <div class="wrap">
     <div class="topbar">
