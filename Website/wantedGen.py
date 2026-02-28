@@ -544,6 +544,38 @@ INDEX_HTML = """
       display: block;
     }
 
+    .story-panel{
+      position: relative;
+      z-index: 1;
+      padding-top: 10px;
+      display:grid;
+      gap: 14px;
+    }
+
+    .story-card{
+      border-radius: 16px;
+      border: 1px solid rgba(43,26,16,.18);
+      background: rgba(255,255,255,.34);
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(0,0,0,.08);
+    }
+
+    .story-kicker{
+      margin: 0 0 8px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(43,26,16,.6);
+    }
+
+    .story-card p{
+      margin: 0;
+      color: rgba(43,26,16,.88);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
     .hidden{ display:none; }
 
     code{
@@ -575,6 +607,7 @@ INDEX_HTML = """
       <div class="paper-tabs">
         <button class="tab-btn active" type="button" data-tab="posters">Most Wanted</button>
         <button class="tab-btn" type="button" data-tab="agent">AI Deputy</button>
+        <button class="tab-btn" type="button" data-tab="story">Gang Briefing</button>
       </div>
 
       <section id="tab-posters" class="tab-panel">
@@ -620,6 +653,44 @@ INDEX_HTML = """
           {% endif %}
         </div>
       </section>
+
+      <section id="tab-story" class="tab-panel hidden">
+        <div class="paper-head">
+          <h2>Gang Briefing</h2>
+          <div class="queue">For licensed bounty hunters</div>
+        </div>
+
+        <div class="story-panel">
+          <div class="story-card">
+            <div class="story-kicker">Field Notice</div>
+            <p>
+              Word has spread from the back roads to the student blocks around Clemson: a fast-moving crew known as the
+              Three Cactus Thieves has been lifting laptops from dorm rooms, library tables, and unlocked trucks before the dust
+              even settles. They travel light, scout in pairs, and leave behind just enough confusion to make witnesses
+              doubt what they saw.
+            </p>
+          </div>
+
+          <div class="story-card">
+            <div class="story-kicker">Known Pattern</div>
+            <p>
+              Their method is simple. One rider watches the foot traffic, another slips in, snatches the machine, and a
+              third runs the hardware through a chain of quick handoffs before sunrise. By the time a victim files a
+              report, the stolen device is already stripped, wiped, or moving out of county. They favor crowded events,
+              late-night study spots, and parking lots near apartment complexes on the edge of town.
+            </p>
+          </div>
+
+          <div class="story-card">
+            <div class="story-kicker">Hunter Guidance</div>
+            <p>
+              Bounty hunters tracking this gang should keep up to date with the most wanted posters that contain the faces of the notorious gang.
+	      The more laptops a criminal has stolen, the higher their bounty. If you need any help, talk to the Deputy and ask about the gang and 
+	      where they can be found. Best of luck to all, and be sure to stay safe.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -631,6 +702,7 @@ INDEX_HTML = """
     const tabPanels = {
       posters: document.getElementById("tab-posters"),
       agent: document.getElementById("tab-agent"),
+      story: document.getElementById("tab-story"),
     };
 
     function setActiveTab(tabName) {
