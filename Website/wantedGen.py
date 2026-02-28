@@ -51,6 +51,7 @@ NAME_PLATE_BOX = (336, 1381, 878, 1454)    # where the name text goes
 SCAN_INTERVAL_SECONDS = 3
 STREAM_HEARTBEAT_SECONDS = 1
 ELEVENLABS_AGENT_ID = "agent_3401kjhc8whcfg9vf8aa0dt716yh"  # Paste your public ElevenLabs agent ID here to enable the Agent tab
+LIVE_FEED_URL = ""  # Set to a stream/image URL (for example an MJPEG endpoint) to enable the Live Feed tab
 
 
 # =========================
@@ -653,6 +654,35 @@ INDEX_HTML = """
       gap: 14px;
     }
 
+    .feed-shell{
+      position: relative;
+      z-index: 1;
+      padding-top: 10px;
+    }
+
+    .feed-frame{
+      width: min(100%, 900px);
+      margin: 0 auto;
+      border-radius: 22px;
+      border: 1px solid rgba(247,213,155,.14);
+      background:
+        linear-gradient(180deg, rgba(255,240,214,.06), rgba(0,0,0,.12)),
+        rgba(0,0,0,.2);
+      box-shadow: 0 18px 38px rgba(0,0,0,.24);
+      padding: 18px;
+    }
+
+    .feed-frame img{
+      display:block;
+      width:100%;
+      height:auto;
+      min-height: 320px;
+      max-height: 560px;
+      object-fit: contain;
+      border-radius: 14px;
+      background: rgba(0,0,0,.24);
+    }
+
     .story-card{
       border-radius: 16px;
       border: 1px solid rgba(247,213,155,.1);
@@ -711,6 +741,7 @@ INDEX_HTML = """
         <button class="tab-btn active" type="button" data-tab="posters">Most Wanted</button>
         <button class="tab-btn" type="button" data-tab="agent">Campus Sheriff</button>
         <button class="tab-btn" type="button" data-tab="story">Gang Briefing</button>
+        <button class="tab-btn" type="button" data-tab="feed">Live Feed</button>
         <button class="tab-btn" type="button" data-tab="tos">TOS</button>
       </div>
 
@@ -802,6 +833,25 @@ INDEX_HTML = """
         </div>
       </section>
 
+      <section id="tab-feed" class="tab-panel hidden">
+        <div class="paper-head">
+          <h2>Live Feed</h2>
+          <div class="queue">Jetson camera monitor</div>
+        </div>
+
+        <div class="feed-shell">
+          {% if live_feed_url %}
+            <div class="feed-frame">
+              <img src="{{ live_feed_url }}" alt="Live camera feed">
+            </div>
+          {% else %}
+            <div class="empty">
+              Add your stream URL to <code>LIVE_FEED_URL</code> in this file to display a live camera feed here.
+            </div>
+          {% endif %}
+        </div>
+      </section>
+
       <section id="tab-tos" class="tab-panel hidden">
         <div class="paper-head">
           <h2>Terms of Service</h2>
@@ -831,6 +881,7 @@ INDEX_HTML = """
       posters: document.getElementById("tab-posters"),
       agent: document.getElementById("tab-agent"),
       story: document.getElementById("tab-story"),
+      feed: document.getElementById("tab-feed"),
       tos: document.getElementById("tab-tos"),
     };
 
@@ -920,6 +971,7 @@ def index():
         interval=SCAN_INTERVAL_SECONDS,
         elevenlabs_agent_id=ELEVENLABS_AGENT_ID.strip(),
         campus_sheriff_image_url=get_campus_sheriff_asset_url(),
+        live_feed_url=LIVE_FEED_URL.strip(),
     )
 
 
