@@ -17,23 +17,22 @@ Use:
 
 from __future__ import annotations
 
+import json
 import time
 import re
 from pathlib import Path
 
-from flask import Flask, send_from_directory, render_template_string
+from flask import Flask, Response, jsonify, send_from_directory, render_template_string, stream_with_context
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 # =========================
 # CONFIG
 # =========================
-# IMPORTANT: Change this to your real template path on Windows.
-# Example:
-# WANTED_TEMPLATE_PATH = r"C:\Users\bedfa\Desktop\Hackathon\template.png"
-WANTED_TEMPLATE_PATH = r"C:\Users\bedfa\wantedGen\template.jpg"
+BASE_DIR = Path(__file__).resolve().parent
+WANTED_TEMPLATE_PATH = BASE_DIR / "template.jpg"
 
-INPUT_DIR = Path("input_faces")
-OUTPUT_DIR = Path("static/generated")
+INPUT_DIR = BASE_DIR / "input_faces"
+OUTPUT_DIR = BASE_DIR / "static" / "generated"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -45,6 +44,7 @@ PHOTO_BOX = (148, 393, 1081, 1276)          # where the face goes (left, top, ri
 NAME_PLATE_BOX = (336, 1381, 878, 1454)    # where the name text goes
 
 SCAN_INTERVAL_SECONDS = 3
+STREAM_HEARTBEAT_SECONDS = 1
 
 
 # =========================
@@ -170,6 +170,42 @@ def output_filename_for(face_path: Path) -> str:
     return f"{safe_stem}.jpg"
 
 
+def list_generated_images() -> list[dict[str, str | int]]:
+    posters = []
+    for image_path in sorted(OUTPUT_DIR.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True):
+        posters.append(
+            {
+                "name": image_path.name,
+                "label": secure_display_name(image_path.name),
+                "url": f"/generated/{image_path.name}",
+                "modified": int(image_path.stat().st_mtime),
+            }
+        )
+    return posters
+
+
+def stream_poster_updates():
+    last_payload = None
+    last_scan = 0.0
+
+    while True:
+        now = time.time()
+        if now - last_scan >= SCAN_INTERVAL_SECONDS:
+            made = process_new_files()
+            if made:
+                print(f"[INFO] Created {made} poster(s).")
+            last_scan = now
+
+        payload = json.dumps({"images": list_generated_images()})
+        if payload != last_payload:
+            yield f"data: {payload}\n\n"
+            last_payload = payload
+        else:
+            yield ": keepalive\n\n"
+
+        time.sleep(STREAM_HEARTBEAT_SECONDS)
+
+
 def process_new_files() -> int:
     """
     Scan INPUT_DIR and generate posters for any faces that don't have outputs yet.
@@ -184,8 +220,8 @@ def process_new_files() -> int:
 
         out_name = output_filename_for(face_path)
         out_path = OUTPUT_DIR / out_name
-        if out_path.exists():
-            continue  # already processed
+        if out_path.exists() and out_path.stat().st_mtime >= face_path.stat().st_mtime:
+            continue  # already processed and up to date
 
         try:
             with Image.open(face_path) as face_img:
@@ -310,6 +346,12 @@ INDEX_HTML = """
       width:8px; height:8px; border-radius:999px;
       background: #f4c67a;
       box-shadow: 0 0 0 6px rgba(244,198,122,.15);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    @keyframes pulse{
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.18); opacity: .7; }
     }
 
     .paper{
@@ -347,6 +389,23 @@ INDEX_HTML = """
       color: var(--ink2);
       position:relative;
       z-index:1;
+    }
+
+    .paper-head{
+      position: relative;
+      z-index: 1;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom: 12px;
+    }
+
+    .queue{
+      font-size: 12px;
+      font-weight: 800;
+      color: rgba(43,26,16,.7);
+      text-align: right;
     }
 
     .grid{
@@ -425,6 +484,8 @@ INDEX_HTML = """
       z-index:1;
     }
 
+    .hidden{ display:none; }
+
     code{
       background: rgba(0,0,0,.08);
       border: 1px solid rgba(0,0,0,.10);
@@ -447,33 +508,79 @@ INDEX_HTML = """
       <div class="brand">
         <h1 class="title">Cowboy Criminal Database</h1>
       </div>
-      <div class="badge"><span class="dot"></span> Auto-scan: {{ interval }}s</div>
+      <div class="badge"><span class="dot"></span> <span id="status-text">Connecting to live upload stream</span></div>
     </div>
 
     <div class="paper">
-      <h2>Most Wanted</h2>
+      <div class="paper-head">
+        <h2>Most Wanted</h2>
+        <div class="queue">Upload target: <code>{{ input_dir }}</code></div>
+      </div>
 
-      {% if images %}
-        <div class="grid">
-          {% for img in images %}
-            <div class="card">
-              <a href="{{ url_for('generated_file', filename=img) }}">
-                <img class="thumb" src="{{ url_for('generated_file', filename=img) }}" alt="{{ img }}">
-              </a>
-              <div class="meta">
-                <div class="name">{{ img }}</div>
-                <a class="btn" href="{{ url_for('generated_file', filename=img) }}">Open</a>
-              </div>
+      <div id="gallery" class="grid{% if not images %} hidden{% endif %}">
+        {% for img in images %}
+          <div class="card">
+            <a href="{{ img.url }}">
+              <img class="thumb" src="{{ img.url }}" alt="{{ img.name }}">
+            </a>
+            <div class="meta">
+              <div class="name">{{ img.label }}</div>
+              <a class="btn" href="{{ img.url }}">Open</a>
             </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div class="empty">
-          No posters yet. Add a face image to <code>{{ input_dir }}</code>.
-        </div>
-      {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <div id="empty-state" class="empty{% if images %} hidden{% endif %}">
+        No posters yet. The site is waiting for the Jetson to add a face image to <code>{{ input_dir }}</code>.
+      </div>
     </div>
   </div>
+
+  <script>
+    const gallery = document.getElementById("gallery");
+    const emptyState = document.getElementById("empty-state");
+    const statusText = document.getElementById("status-text");
+    function renderCards(images) {
+      if (!images.length) {
+        gallery.classList.add("hidden");
+        emptyState.classList.remove("hidden");
+        statusText.textContent = "Live stream connected, waiting for the first upload";
+        return;
+      }
+
+      gallery.innerHTML = images.map((img) => `
+        <div class="card">
+          <a href="${img.url}">
+            <img class="thumb" src="${img.url}?t=${img.modified}" alt="${img.name}">
+          </a>
+          <div class="meta">
+            <div class="name">${img.label}</div>
+            <a class="btn" href="${img.url}">Open</a>
+          </div>
+        </div>
+      `).join("");
+
+      gallery.classList.remove("hidden");
+      emptyState.classList.add("hidden");
+      statusText.textContent = `Live stream connected, ${images.length} poster${images.length === 1 ? "" : "s"} loaded`;
+    }
+
+    const posterStream = new EventSource("/events/posters");
+
+    posterStream.onmessage = (event) => {
+      const payload = JSON.parse(event.data);
+      renderCards(payload.images);
+    };
+
+    posterStream.onopen = () => {
+      statusText.textContent = "Live stream connected";
+    };
+
+    posterStream.onerror = () => {
+      statusText.textContent = "Live stream reconnecting";
+    };
+  </script>
 </body>
 </html>
 """
@@ -493,12 +600,35 @@ def auto_scan_folder():
 
 @app.get("/")
 def index():
-    images = sorted([p.name for p in OUTPUT_DIR.glob("*.jpg")], reverse=True)
+    images = list_generated_images()
     return render_template_string(
         INDEX_HTML,
         images=images,
         input_dir=str(INPUT_DIR),
         interval=SCAN_INTERVAL_SECONDS,
+    )
+
+
+@app.get("/api/posters")
+def posters_api():
+    return jsonify(
+        {
+            "images": list_generated_images(),
+            "input_dir": str(INPUT_DIR),
+            "interval": SCAN_INTERVAL_SECONDS,
+        }
+    )
+
+
+@app.get("/events/posters")
+def posters_events():
+    return Response(
+        stream_with_context(stream_poster_updates()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
@@ -508,7 +638,7 @@ def generated_file(filename: str):
 
 
 if __name__ == "__main__":
-    template_path = Path(WANTED_TEMPLATE_PATH)
+    template_path = WANTED_TEMPLATE_PATH
     if not template_path.exists():
         raise FileNotFoundError(
             f"Template not found at: {WANTED_TEMPLATE_PATH}\n"
