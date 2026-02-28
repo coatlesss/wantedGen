@@ -25,6 +25,12 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, send_from_directory, render_template_string, stream_with_context
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+try:
+    import cv2
+    CAMERA_AVAILABLE = True
+except ImportError:
+    CAMERA_AVAILABLE = False
+
 # Pillow <9.1 doesn't have Image.Resampling — fall back to the legacy constant
 _LANCZOS = Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
 
@@ -50,6 +56,78 @@ SCAN_INTERVAL_SECONDS = 3
 STREAM_HEARTBEAT_SECONDS = 1
 ELEVENLABS_AGENT_ID = "agent_3401kjhc8whcfg9vf8aa0dt716yh"  # Paste your public ElevenLabs agent ID here to enable the Agent tab
 LIVE_FEED_URL = "/static/live_feed.jpg"  # Live snapshot from receivefeed.py
+
+# =========================
+# CAMERA CONFIG
+# =========================
+# Camera settings for Jetson Orin Nano
+CAMERA_SOURCES = [
+    # Try simple sources first
+    ("Simple /dev/video0", lambda: cv2.VideoCapture(0) if CAMERA_AVAILABLE else None),
+    ("Simple /dev/video1", lambda: cv2.VideoCapture(1) if CAMERA_AVAILABLE else None),
+]
+
+# GStreamer pipelines for Jetson
+if CAMERA_AVAILABLE:
+    CAMERA_SOURCES.extend([
+        ("nvarguscamerasrc (optimized)", 
+         lambda: cv2.VideoCapture(
+             "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=640, height=480, framerate=30/1 ! "
+             "nvvidconv ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink",
+             cv2.CAP_GSTREAMER
+         )),
+        ("v4l2src /dev/video0",
+         lambda: cv2.VideoCapture(
+             "v4l2src device=/dev/video0 ! video/x-raw, width=640, height=480, framerate=30/1 ! "
+             "videoconvert ! video/x-raw, format=BGR ! appsink",
+             cv2.CAP_GSTREAMER
+         )),
+    ])
+
+_camera = None
+
+def get_camera():
+    """Initialize and return camera object."""
+    global _camera
+    if _camera is not None:
+        return _camera
+    
+    if not CAMERA_AVAILABLE:
+        print("[WARN] OpenCV not installed or camera not available")
+        return None
+    
+    # Try each camera source
+    for name, factory in CAMERA_SOURCES:
+        try:
+            cap = factory()
+            if cap and cap.isOpened():
+                print(f"[INFO] Camera initialized: {name}")
+                _camera = cap
+                return _camera
+        except Exception as e:
+            print(f"[WARN] Failed to open camera ({name}): {e}")
+    
+    print("[WARN] Could not open any camera source")
+    return None
+
+def generate_video_frames():
+    """Generator function that yields JPEG frames from camera."""
+    cam = get_camera()
+    if cam is None:
+        return
+    
+    while True:
+        ret, frame = cam.read()
+        if not ret:
+            break
+        
+        # Encode frame as JPEG
+        ret, jpeg = cv2.imencode('.jpg', frame)
+        if ret:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n'
+                   b'Content-Length: ' + str(len(jpeg.tobytes())).encode() + b'\r\n\r\n'
+                   + jpeg.tobytes() + b'\r\n')
 
 # =========================
 # HELPERS
@@ -803,15 +881,9 @@ INDEX_HTML = """
         </div>
 
         <div class="feed-shell">
-          {% if live_feed_url %}
-            <div class="feed-frame">
-              <img id="live-feed-img" src="{{ live_feed_url }}" alt="Live camera feed">
-            </div>
-          {% else %}
-            <div class="empty">
-              Add your stream URL to <code>LIVE_FEED_URL</code> in this file to display a live camera feed here.
-            </div>
-          {% endif %}
+          <div class="feed-frame">
+            <img id="live-feed-img" src="/camera/stream" alt="Live camera feed">
+          </div>
         </div>
       </section>
 
@@ -904,15 +976,7 @@ INDEX_HTML = """
       statusText.textContent = "Live stream reconnecting";
     };
 
-    // Auto-refresh live feed image every 500ms with cache busting
-    const liveFeedImg = document.getElementById("live-feed-img");
-    if (liveFeedImg) {
-      setInterval(() => {
-        const timestamp = new Date().getTime();
-        const baseUrl = liveFeedImg.src.split("?")[0];
-        liveFeedImg.src = `${baseUrl}?t=${timestamp}`;
-      }, 500);
-    }
+    // Live feed streams via MJPEG, no need for manual refresh
   </script>
   {% if elevenlabs_agent_id %}
     <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
@@ -973,6 +1037,22 @@ def posters_events():
 @app.get("/generated/<path:filename>")
 def generated_file(filename: str):
     return send_from_directory(OUTPUT_DIR, filename)
+
+
+@app.get("/camera/stream")
+def camera_stream():
+    """Stream video from the connected camera as MJPEG."""
+    if not CAMERA_AVAILABLE:
+        return "OpenCV not installed", 400
+    
+    return Response(
+        generate_video_frames(),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 if __name__ == "__main__":
