@@ -678,6 +678,7 @@ INDEX_HTML = """
         <button class="tab-btn active" type="button" data-tab="posters">Most Wanted</button>
         <button class="tab-btn" type="button" data-tab="agent">AI Deputy</button>
         <button class="tab-btn" type="button" data-tab="story">Gang Briefing</button>
+        <button class="tab-btn" type="button" data-tab="tos">TOS</button>
       </div>
 
       <section id="tab-posters" class="tab-panel">
@@ -761,6 +762,24 @@ INDEX_HTML = """
           </div>
         </div>
       </section>
+
+      <section id="tab-tos" class="tab-panel hidden">
+        <div class="paper-head">
+          <h2>Terms of Service</h2>
+          <div class="queue">Privacy notice</div>
+        </div>
+
+        <div class="story-panel">
+          <div class="story-card">
+            <div class="story-kicker">Data Handling</div>
+            <p>
+              Any face images, generated posters, and related data used by this website are stored privately for this
+              application only. That data will not be used, shared, or repurposed for any other reason outside the
+              operation of this system.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -773,6 +792,7 @@ INDEX_HTML = """
       posters: document.getElementById("tab-posters"),
       agent: document.getElementById("tab-agent"),
       story: document.getElementById("tab-story"),
+      tos: document.getElementById("tab-tos"),
     };
 
     function setActiveTab(tabName) {
