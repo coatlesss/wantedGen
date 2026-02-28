@@ -45,6 +45,7 @@ NAME_PLATE_BOX = (336, 1381, 878, 1454)    # where the name text goes
 
 SCAN_INTERVAL_SECONDS = 3
 STREAM_HEARTBEAT_SECONDS = 1
+ELEVENLABS_AGENT_ID = "agent_3401kjhc8whcfg9vf8aa0dt716yh"  # Paste your public ElevenLabs agent ID here to enable the Agent tab
 
 
 # =========================
@@ -401,6 +402,44 @@ INDEX_HTML = """
       margin-bottom: 12px;
     }
 
+    .paper-tabs{
+      position: relative;
+      z-index: 1;
+      display:flex;
+      gap:10px;
+      margin-bottom: 14px;
+    }
+
+    .tab-btn{
+      border: 1px solid rgba(43,26,16,.18);
+      background: rgba(255,255,255,.35);
+      color: rgba(43,26,16,.7);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease, transform .15s ease;
+    }
+
+    .tab-btn:hover{
+      transform: translateY(-1px);
+      background: rgba(255,255,255,.5);
+    }
+
+    .tab-btn.active{
+      background: var(--ink2);
+      color: var(--paper);
+      border-color: rgba(43,26,16,.35);
+      box-shadow: 0 8px 18px rgba(43,26,16,.18);
+    }
+
+    .tab-panel.hidden{
+      display:none;
+    }
+
     .queue{
       font-size: 12px;
       font-weight: 800;
@@ -484,6 +523,27 @@ INDEX_HTML = """
       z-index:1;
     }
 
+    .agent-shell{
+      position: relative;
+      z-index: 1;
+      min-height: 520px;
+      padding-top: 10px;
+    }
+
+    .agent-frame{
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      min-height: 460px;
+    }
+
+    elevenlabs-convai{
+      width: 100%;
+      max-width: 520px;
+      min-height: 460px;
+      display: block;
+    }
+
     .hidden{ display:none; }
 
     code{
@@ -512,28 +572,54 @@ INDEX_HTML = """
     </div>
 
     <div class="paper">
-      <div class="paper-head">
-        <h2>Most Wanted</h2>
-        <div class="queue">Upload target: <code>{{ input_dir }}</code></div>
+      <div class="paper-tabs">
+        <button class="tab-btn active" type="button" data-tab="posters">Most Wanted</button>
+        <button class="tab-btn" type="button" data-tab="agent">AI Deputy</button>
       </div>
 
-      <div id="gallery" class="grid{% if not images %} hidden{% endif %}">
-        {% for img in images %}
-          <div class="card">
-            <a href="{{ img.url }}">
-              <img class="thumb" src="{{ img.url }}" alt="{{ img.name }}">
-            </a>
-            <div class="meta">
-              <div class="name">{{ img.label }}</div>
-              <a class="btn" href="{{ img.url }}">Open</a>
+      <section id="tab-posters" class="tab-panel">
+        <div class="paper-head">
+          <h2>Most Wanted</h2>
+          <div class="queue">Upload target: <code>{{ input_dir }}</code></div>
+        </div>
+
+        <div id="gallery" class="grid{% if not images %} hidden{% endif %}">
+          {% for img in images %}
+            <div class="card">
+              <a href="{{ img.url }}">
+                <img class="thumb" src="{{ img.url }}" alt="{{ img.name }}">
+              </a>
+              <div class="meta">
+                <div class="name">{{ img.label }}</div>
+                <a class="btn" href="{{ img.url }}">Open</a>
+              </div>
             </div>
-          </div>
-        {% endfor %}
-      </div>
+          {% endfor %}
+        </div>
 
-      <div id="empty-state" class="empty{% if images %} hidden{% endif %}">
-        No posters yet. The site is waiting for the Jetson to add a face image to <code>{{ input_dir }}</code>.
-      </div>
+        <div id="empty-state" class="empty{% if images %} hidden{% endif %}">
+          No posters yet. The site is waiting for the Jetson to add a face image to <code>{{ input_dir }}</code>.
+        </div>
+      </section>
+
+      <section id="tab-agent" class="tab-panel hidden">
+        <div class="paper-head">
+          <h2>AI Deputy</h2>
+          <div class="queue">Powered by ElevenLabs</div>
+        </div>
+
+        <div class="agent-shell">
+          {% if elevenlabs_agent_id %}
+            <div class="agent-frame">
+              <elevenlabs-convai agent-id="{{ elevenlabs_agent_id }}" variant="expanded"></elevenlabs-convai>
+            </div>
+          {% else %}
+            <div class="empty">
+              Add your ElevenLabs public agent ID to <code>ELEVENLABS_AGENT_ID</code> in this file to enable the embedded agent tab.
+            </div>
+          {% endif %}
+        </div>
+      </section>
     </div>
   </div>
 
@@ -541,6 +627,28 @@ INDEX_HTML = """
     const gallery = document.getElementById("gallery");
     const emptyState = document.getElementById("empty-state");
     const statusText = document.getElementById("status-text");
+    const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+    const tabPanels = {
+      posters: document.getElementById("tab-posters"),
+      agent: document.getElementById("tab-agent"),
+    };
+
+    function setActiveTab(tabName) {
+      tabButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.tab === tabName);
+      });
+
+      Object.entries(tabPanels).forEach(([name, panel]) => {
+        panel.classList.toggle("hidden", name !== tabName);
+      });
+    }
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setActiveTab(button.dataset.tab);
+      });
+    });
+
     function renderCards(images) {
       if (!images.length) {
         gallery.classList.add("hidden");
@@ -581,6 +689,9 @@ INDEX_HTML = """
       statusText.textContent = "Live stream reconnecting";
     };
   </script>
+  {% if elevenlabs_agent_id %}
+    <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
+  {% endif %}
 </body>
 </html>
 """
@@ -606,6 +717,7 @@ def index():
         images=images,
         input_dir=str(INPUT_DIR),
         interval=SCAN_INTERVAL_SECONDS,
+        elevenlabs_agent_id=ELEVENLABS_AGENT_ID.strip(),
     )
 
 
