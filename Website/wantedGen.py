@@ -36,8 +36,10 @@ WANTED_TEMPLATE_PATH = BASE_DIR / "template.jpg"
 
 INPUT_DIR = BASE_DIR / "input_faces"
 OUTPUT_DIR = BASE_DIR / "static" / "generated"
+ASSETS_DIR = BASE_DIR / "static" / "assets"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
+ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 FACE_SIZE = (240, 240)
@@ -186,6 +188,14 @@ def list_generated_images() -> list[dict[str, str | int]]:
             }
         )
     return posters
+
+
+def get_campus_sheriff_asset_url() -> str | None:
+    for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif"):
+        asset_path = ASSETS_DIR / f"campus_sheriff{ext}"
+        if asset_path.exists():
+            return f"/static/assets/{asset_path.name}"
+    return None
 
 
 def stream_poster_updates():
@@ -601,6 +611,26 @@ INDEX_HTML = """
       padding-top: 10px;
     }
 
+    .agent-hero{
+      width: min(100%, 520px);
+      margin: 0 auto 24px;
+      display:flex;
+      justify-content:center;
+    }
+
+    .agent-hero img{
+      display:block;
+      max-width:100%;
+      max-height:320px;
+      width:auto;
+      height:auto;
+      object-fit:contain;
+      border-radius:18px;
+      border:1px solid rgba(247,213,155,.14);
+      box-shadow:0 16px 32px rgba(0,0,0,.22);
+      background: rgba(0,0,0,.12);
+    }
+
     .agent-frame{
       display:flex;
       justify-content:center;
@@ -679,7 +709,7 @@ INDEX_HTML = """
     <div class="paper">
       <div class="paper-tabs">
         <button class="tab-btn active" type="button" data-tab="posters">Most Wanted</button>
-        <button class="tab-btn" type="button" data-tab="agent">AI Deputy</button>
+        <button class="tab-btn" type="button" data-tab="agent">Campus Sheriff</button>
         <button class="tab-btn" type="button" data-tab="story">Gang Briefing</button>
         <button class="tab-btn" type="button" data-tab="tos">TOS</button>
       </div>
@@ -711,9 +741,15 @@ INDEX_HTML = """
 
       <section id="tab-agent" class="tab-panel hidden">
         <div class="paper-head">
-          <h2>AI Deputy</h2>
+          <h2>Campus Sheriff</h2>
           <div class="queue">Powered by ElevenLabs</div>
         </div>
+
+        {% if campus_sheriff_image_url %}
+          <div class="agent-hero">
+            <img src="{{ campus_sheriff_image_url }}" alt="Campus Sheriff">
+          </div>
+        {% endif %}
 
         <div class="agent-shell">
           {% if elevenlabs_agent_id %}
@@ -883,6 +919,7 @@ def index():
         input_dir=str(INPUT_DIR),
         interval=SCAN_INTERVAL_SECONDS,
         elevenlabs_agent_id=ELEVENLABS_AGENT_ID.strip(),
+        campus_sheriff_image_url=get_campus_sheriff_asset_url(),
     )
 
 
