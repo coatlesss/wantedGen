@@ -36,10 +36,8 @@ WANTED_TEMPLATE_PATH = BASE_DIR / "template.jpg"
 
 INPUT_DIR = BASE_DIR / "input_faces"
 OUTPUT_DIR = BASE_DIR / "static" / "generated"
-ASSETS_DIR = BASE_DIR / "static" / "assets"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
-ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 FACE_SIZE = (240, 240)
@@ -51,8 +49,7 @@ NAME_PLATE_BOX = (336, 1381, 878, 1454)    # where the name text goes
 SCAN_INTERVAL_SECONDS = 3
 STREAM_HEARTBEAT_SECONDS = 1
 ELEVENLABS_AGENT_ID = "agent_3401kjhc8whcfg9vf8aa0dt716yh"  # Paste your public ElevenLabs agent ID here to enable the Agent tab
-LIVE_FEED_URL = ""  # Set to a stream/image URL (for example an MJPEG endpoint) to enable the Live Feed tab
-
+LIVE_FEED_URL = "/static/live_feed.jpg"  # Live snapshot from receivefeed.py
 
 # =========================
 # HELPERS
@@ -189,14 +186,6 @@ def list_generated_images() -> list[dict[str, str | int]]:
             }
         )
     return posters
-
-
-def get_campus_sheriff_asset_url() -> str | None:
-    for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif"):
-        asset_path = ASSETS_DIR / f"campus_sheriff{ext}"
-        if asset_path.exists():
-            return f"/static/assets/{asset_path.name}"
-    return None
 
 
 def stream_poster_updates():
@@ -612,26 +601,6 @@ INDEX_HTML = """
       padding-top: 10px;
     }
 
-    .agent-hero{
-      width: min(100%, 520px);
-      margin: 0 auto 24px;
-      display:flex;
-      justify-content:center;
-    }
-
-    .agent-hero img{
-      display:block;
-      max-width:100%;
-      max-height:320px;
-      width:auto;
-      height:auto;
-      object-fit:contain;
-      border-radius:18px;
-      border:1px solid rgba(247,213,155,.14);
-      box-shadow:0 16px 32px rgba(0,0,0,.22);
-      background: rgba(0,0,0,.12);
-    }
-
     .agent-frame{
       display:flex;
       justify-content:center;
@@ -739,7 +708,7 @@ INDEX_HTML = """
     <div class="paper">
       <div class="paper-tabs">
         <button class="tab-btn active" type="button" data-tab="posters">Most Wanted</button>
-        <button class="tab-btn" type="button" data-tab="agent">Campus Sheriff</button>
+        <button class="tab-btn" type="button" data-tab="agent">AI Deputy</button>
         <button class="tab-btn" type="button" data-tab="story">Gang Briefing</button>
         <button class="tab-btn" type="button" data-tab="feed">Live Feed</button>
         <button class="tab-btn" type="button" data-tab="tos">TOS</button>
@@ -772,15 +741,9 @@ INDEX_HTML = """
 
       <section id="tab-agent" class="tab-panel hidden">
         <div class="paper-head">
-          <h2>Campus Sheriff</h2>
+          <h2>AI Deputy</h2>
           <div class="queue">Powered by ElevenLabs</div>
         </div>
-
-        {% if campus_sheriff_image_url %}
-          <div class="agent-hero">
-            <img src="{{ campus_sheriff_image_url }}" alt="Campus Sheriff">
-          </div>
-        {% endif %}
 
         <div class="agent-shell">
           {% if elevenlabs_agent_id %}
@@ -842,7 +805,7 @@ INDEX_HTML = """
         <div class="feed-shell">
           {% if live_feed_url %}
             <div class="feed-frame">
-              <img src="{{ live_feed_url }}" alt="Live camera feed">
+              <img id="live-feed-img" src="{{ live_feed_url }}" alt="Live camera feed">
             </div>
           {% else %}
             <div class="empty">
@@ -940,6 +903,16 @@ INDEX_HTML = """
     posterStream.onerror = () => {
       statusText.textContent = "Live stream reconnecting";
     };
+
+    // Auto-refresh live feed image every 500ms with cache busting
+    const liveFeedImg = document.getElementById("live-feed-img");
+    if (liveFeedImg) {
+      setInterval(() => {
+        const timestamp = new Date().getTime();
+        const baseUrl = liveFeedImg.src.split("?")[0];
+        liveFeedImg.src = `${baseUrl}?t=${timestamp}`;
+      }, 500);
+    }
   </script>
   {% if elevenlabs_agent_id %}
     <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
@@ -970,7 +943,6 @@ def index():
         input_dir=str(INPUT_DIR),
         interval=SCAN_INTERVAL_SECONDS,
         elevenlabs_agent_id=ELEVENLABS_AGENT_ID.strip(),
-        campus_sheriff_image_url=get_campus_sheriff_asset_url(),
         live_feed_url=LIVE_FEED_URL.strip(),
     )
 
