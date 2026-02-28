@@ -44,7 +44,7 @@ FACE_SIZE = (240, 240)
 PHOTO_BOX = (148, 393, 1081, 1276)          # where the face goes (left, top, right, bottom)
 NAME_PLATE_BOX = (336, 1381, 878, 1454)    # where the name text goes
 
-SCAN_INTERVAL_SECONDS = 2
+SCAN_INTERVAL_SECONDS = 3
 
 
 # =========================
@@ -209,36 +209,271 @@ INDEX_HTML = """
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Wanted Posters</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-    .wrap { max-width: 980px; margin: 0 auto; }
-    .muted { color: #666; font-size: 14px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-    img { width: 100%; height: auto; border-radius: 10px; border: 1px solid #eee; }
-    code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+    :root{
+      --night:#120a06;
+      --sand1:#2a160d;
+      --sand2:#3a210f;
+      --paper:#f3e2c6;
+      --paper2:#ecd2a2;
+      --ink:#2b1a10;
+      --ink2:#4a2a18;
+      --shadow: 0 18px 55px rgba(0,0,0,.45);
+      --radius: 18px;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--paper);
+      background:
+        radial-gradient(1200px 600px at 15% -10%, rgba(255,180,90,.18), transparent 65%),
+        radial-gradient(900px 500px at 85% 0%, rgba(90,180,255,.10), transparent 60%),
+        linear-gradient(180deg, var(--night) 0%, var(--sand1) 55%, var(--sand2) 100%);
+      min-height:100vh;
+      overflow-x:hidden;
+    }
+
+    .haze{
+      position:fixed; inset:-100px;
+      background: radial-gradient(900px 500px at 50% 40%, rgba(255,255,255,.08), transparent 60%);
+      pointer-events:none;
+      filter: blur(2px);
+      opacity:.55;
+      z-index:0;
+    }
+
+    /* cactus png decorations */
+    .cactus{
+      position: fixed;
+      bottom: -10px;
+      width: 260px;
+      opacity: .26;
+      pointer-events:none;
+      z-index:0;
+      filter: drop-shadow(0 10px 25px rgba(0,0,0,.45));
+    }
+    .cactus.left{ left: 10px; }
+    .cactus.right{ right: 10px; transform: scaleX(-1); }
+
+    .wrap{
+      position:relative;
+      z-index:1;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 26px;
+    }
+
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:16px;
+      padding: 18px 18px;
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(243,226,198,.12), rgba(243,226,198,.06));
+      border: 1px solid rgba(243,226,198,.18);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand{ display:flex; flex-direction:column; gap:4px; }
+    .title{
+      margin:0;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-weight:900;
+      font-size: 18px;
+    }
+    .sub{
+      margin:0;
+      color: rgba(243,226,198,.75);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(243,226,198,.20);
+      background: rgba(0,0,0,.18);
+      color: rgba(243,226,198,.85);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .dot{
+      width:8px; height:8px; border-radius:999px;
+      background: #f4c67a;
+      box-shadow: 0 0 0 6px rgba(244,198,122,.15);
+    }
+
+    .paper{
+      margin-top: 18px;
+      border-radius: calc(var(--radius) + 6px);
+      background:
+        radial-gradient(900px 600px at 20% 10%, rgba(255,255,255,.25), transparent 55%),
+        radial-gradient(700px 500px at 85% 25%, rgba(0,0,0,.05), transparent 60%),
+        linear-gradient(180deg, var(--paper) 0%, var(--paper2) 100%);
+      border: 1px solid rgba(43,26,16,.25);
+      box-shadow: 0 25px 70px rgba(0,0,0,.35);
+      padding: 18px;
+      color: var(--ink);
+      position: relative;
+      overflow:hidden;
+    }
+    .paper:before{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(0,0,0,.05) 0 2px, transparent 3px),
+        radial-gradient(circle at 70% 40%, rgba(0,0,0,.04) 0 1.6px, transparent 3px),
+        radial-gradient(circle at 40% 80%, rgba(0,0,0,.04) 0 1.8px, transparent 3px);
+      opacity:.45;
+      pointer-events:none;
+      mix-blend-mode:multiply;
+    }
+
+    .paper h2{
+      margin:0 0 12px;
+      font-size: 16px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: var(--ink2);
+      position:relative;
+      z-index:1;
+    }
+
+    .grid{
+      position:relative;
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+      z-index:1;
+    }
+
+    .card{
+      border-radius: 16px;
+      overflow:hidden;
+      border: 1px solid rgba(43,26,16,.22);
+      background: rgba(255,255,255,.35);
+      transition: transform .15s ease, box-shadow .15s ease;
+      box-shadow: 0 8px 22px rgba(0,0,0,.12);
+    }
+    .card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(0,0,0,.18);
+    }
+
+    .thumb{
+      width:100%;
+      aspect-ratio: 3/4;
+      object-fit: cover;
+      display:block;
+      background: rgba(255,255,255,.35);
+    }
+
+    .meta{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      padding: 10px 12px 12px;
+      position:relative;
+      z-index:1;
+    }
+
+    .name{
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--ink2);
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .btn{
+      text-decoration:none;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform: uppercase;
+      color: var(--ink);
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(43,26,16,.25);
+      background: rgba(255,255,255,.55);
+      transition: background .15s ease;
+      white-space:nowrap;
+    }
+    .btn:hover{ background: rgba(255,255,255,.75); }
+
+    .empty{
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px dashed rgba(43,26,16,.35);
+      background: rgba(255,255,255,.25);
+      color: rgba(43,26,16,.75);
+      position:relative;
+      z-index:1;
+    }
+
+    code{
+      background: rgba(0,0,0,.08);
+      border: 1px solid rgba(0,0,0,.10);
+      padding: 2px 6px;
+      border-radius: 10px;
+      color: var(--ink);
+      font-weight: 800;
+    }
   </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Wanted Posters</h1>
-  <p class="muted">
-    Drop face images into <code>{{ input_dir }}</code>. This page is just for viewing.
-    Auto-scan runs every {{ interval }} seconds.
-  </p>
+  <div class="haze"></div>
 
-  {% if images %}
-    <div class="grid">
-      {% for img in images %}
-        <a href="{{ url_for('generated_file', filename=img) }}">
-          <img src="{{ url_for('generated_file', filename=img) }}" alt="{{ img }}">
-        </a>
-      {% endfor %}
+  <!-- cactus pngs (put them in static/assets/) -->
+  <img class="cactus left"  src="/static/assets/cactus.webp"  alt="cactus left">
+  <img class="cactus right" src="/static/assets/cactus.webp" alt="cactus right">
+
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <h1 class="title">Cowboy Criminal Database</h1>
+      </div>
+      <div class="badge"><span class="dot"></span> Auto-scan: {{ interval }}s</div>
     </div>
-  {% else %}
-    <p class="muted">No posters yet. Add a face image to <code>{{ input_dir }}</code>.</p>
-  {% endif %}
-</div>
+
+    <div class="paper">
+      <h2>Most Wanted</h2>
+
+      {% if images %}
+        <div class="grid">
+          {% for img in images %}
+            <div class="card">
+              <a href="{{ url_for('generated_file', filename=img) }}">
+                <img class="thumb" src="{{ url_for('generated_file', filename=img) }}" alt="{{ img }}">
+              </a>
+              <div class="meta">
+                <div class="name">{{ img }}</div>
+                <a class="btn" href="{{ url_for('generated_file', filename=img) }}">Open</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty">
+          No posters yet. Add a face image to <code>{{ input_dir }}</code>.
+        </div>
+      {% endif %}
+    </div>
+  </div>
 </body>
 </html>
 """
