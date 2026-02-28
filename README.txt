@@ -1,0 +1,1 @@
+Make sure to change template path in wantedGen.py
