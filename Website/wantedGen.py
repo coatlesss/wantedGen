@@ -25,6 +25,9 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, send_from_directory, render_template_string, stream_with_context
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+# Pillow <9.1 doesn't have Image.Resampling — fall back to the legacy constant
+_LANCZOS = Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
+
 # =========================
 # CONFIG
 # =========================
@@ -124,7 +127,7 @@ def make_wanted_poster(face_img: Image.Image, person_name: str) -> Image.Image:
     )
 
     # 1) Normalize face to 240x240 (your requirement)
-    face_240 = ImageOps.fit(face_img.convert("RGBA"), (240, 240), method=Image.Resampling.LANCZOS)
+    face_240 = ImageOps.fit(face_img.convert("RGBA"), (240, 240), method=_LANCZOS)
 
     # Optional vintage tone (comment out if you want original colors)
     face_240 = ImageOps.colorize(
@@ -136,7 +139,7 @@ def make_wanted_poster(face_img: Image.Image, person_name: str) -> Image.Image:
     box_w, box_h = (r - l), (b - t)
 
     # Keep it "photo-like": fit to the box (crop to fill) so it fills the frame.
-    face_for_poster = ImageOps.fit(face_240, (box_w, box_h), method=Image.Resampling.LANCZOS)
+    face_for_poster = ImageOps.fit(face_240, (box_w, box_h), method=_LANCZOS)
 
     out = template.copy()
     out.alpha_composite(face_for_poster, (l, t))
@@ -918,6 +921,11 @@ if __name__ == "__main__":
             f"Template not found at: {WANTED_TEMPLATE_PATH}\n"
             "Fix WANTED_TEMPLATE_PATH to point to your wanted poster image on your PC."
         )
+
+    # Clear the board on every fresh start
+    for _old in OUTPUT_DIR.glob("*.jpg"):
+        _old.unlink()
+    print("[INFO] Bounty board cleared — fresh session")
 
     print(f"[INFO] Watching folder: {INPUT_DIR.resolve()}")
     print(f"[INFO] Output folder:   {OUTPUT_DIR.resolve()}")

@@ -1,15 +1,17 @@
 
-import sys, pickle, cv2, numpy as np
+import pickle, cv2, numpy as np
 
-YUNET  = "face_detection_yunet_2023mar.onnx"
 SFACE  = "face_recognition_sface_2021dec.onnx"
 THRESH = 0.35
 
 # ── change this to any image path ──────────────────────────────────────────
-IMG = "/home/clejah/wildWest/ReceivedImages/img_1772266709.jpg"
+IMG = "/home/clejah/wantedGen/JetsonB/wildWest/CJ/IMG_2927.jpeg"
 # ───────────────────────────────────────────────────────────────────────────
-yunet      = cv2.FaceDetectorYN.create(YUNET, "", (640, 640), score_threshold=0.6)
+
 recognizer = cv2.FaceRecognizerSF.create(SFACE, "")
+cascade    = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+)
 
 with open("suspects.pkl", "rb") as f:
     suspects = pickle.load(f)
@@ -18,17 +20,16 @@ frame = cv2.imread(IMG)
 if frame is None:
     print("Could not read image:", IMG); exit(1)
 
-fh, fw = frame.shape[:2]
-yunet.setInputSize((fw, fh))
-_, faces = yunet.detect(frame)
+gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 
-if faces is None or len(faces) == 0:
+if len(faces) == 0:
     print("No face detected in image")
     exit(0)
 
-best_face  = faces[np.argmax(faces[:, 14])]
-aligned    = recognizer.alignCrop(frame, best_face)
-query_emb  = recognizer.feature(aligned).flatten()
+x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+face_crop  = cv2.resize(frame[y:y+h, x:x+w], (112, 112))
+query_emb  = recognizer.feature(face_crop).flatten()
 query_emb /= np.linalg.norm(query_emb)
 
 print(f"\nImage: {IMG}")

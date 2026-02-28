@@ -15,7 +15,6 @@ import pickle
 import cv2
 import numpy as np
 
-YUNET_MODEL = "face_detection_yunet_2023mar.onnx"
 SFACE_MODEL = "face_recognition_sface_2021dec.onnx"
 OUTPUT_FILE = "suspects.pkl"
 
@@ -26,44 +25,37 @@ SUSPECT_DIRS = {
     "Tolga":   "Tolga",
 }
 
-SCORE_THRESHOLD = 0.6   # YuNet detection confidence threshold
-
-
-def load_detector(w: int, h: int) -> cv2.FaceDetectorYN:
-    det = cv2.FaceDetectorYN.create(
-        model=YUNET_MODEL,
-        config="",
-        input_size=(w, h),
-        score_threshold=SCORE_THRESHOLD,
-        nms_threshold=0.3,
-        top_k=5000,
-    )
-    return det
+# Haar cascade is built into OpenCV — no separate model file needed
+try:
+    _HAAR_XML = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+except AttributeError:
+    _HAAR_XML = "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml"
+_CASCADE = cv2.CascadeClassifier(_HAAR_XML)
 
 
 def compute_embedding(
     recognizer: cv2.FaceRecognizerSF,
-    detector: cv2.FaceDetectorYN,
     img_bgr: np.ndarray,
 ) -> np.ndarray | None:
-    h, w = img_bgr.shape[:2]
-    detector.setInputSize((w, h))
-    _, faces = detector.detect(img_bgr)
-
-    if faces is None or len(faces) == 0:
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    faces = _CASCADE.detectMultiScale(
+        gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
+    )
+    if len(faces) == 0:
         return None
 
-    # Use the highest-confidence detection
-    best = faces[np.argmax(faces[:, 14])]
-    aligned = recognizer.alignCrop(img_bgr, best)
-    feat = recognizer.feature(aligned)
+    # Use the largest detected face
+    x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+    face_crop = img_bgr[y : y + h, x : x + w]
+    # SFace expects a 112×112 BGR image
+    face_crop = cv2.resize(face_crop, (112, 112))
+    feat = recognizer.feature(face_crop)
     return feat.flatten()
 
 
 def process_folder(
     folder: str,
     recognizer: cv2.FaceRecognizerSF,
-    detector: cv2.FaceDetectorYN,
 ) -> np.ndarray | None:
     extensions = ["*.jpg", "*.jpeg", "*.JPG", "*.JPEG", "*.png", "*.PNG"]
     paths = []
@@ -80,7 +72,7 @@ def process_folder(
         if img is None:
             print(f"  [!] Could not read {path}, skipping")
             continue
-        emb = compute_embedding(recognizer, detector, img)
+        emb = compute_embedding(recognizer, img)
         if emb is None:
             print(f"  [!] No face detected in {os.path.basename(path)}, skipping")
         else:
@@ -99,8 +91,6 @@ def process_folder(
 
 def main() -> None:
     recognizer = cv2.FaceRecognizerSF.create(SFACE_MODEL, "")
-    # Detector is re-sized per image; initial size doesn't matter much
-    detector = load_detector(640, 640)
 
     suspects: dict[str, np.ndarray] = {}
 
@@ -109,7 +99,7 @@ def main() -> None:
         if not os.path.isdir(folder):
             print(f"  [!] Directory not found: {folder}/")
             continue
-        emb = process_folder(folder, recognizer, detector)
+        emb = process_folder(folder, recognizer)
         if emb is not None:
             suspects[suspect_id] = emb
 
