@@ -25,12 +25,6 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, send_from_directory, render_template_string, stream_with_context
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-try:
-    import cv2
-    CAMERA_AVAILABLE = True
-except ImportError:
-    CAMERA_AVAILABLE = False
-
 # Pillow <9.1 doesn't have Image.Resampling — fall back to the legacy constant
 _LANCZOS = Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
 
@@ -56,78 +50,7 @@ SCAN_INTERVAL_SECONDS = 3
 STREAM_HEARTBEAT_SECONDS = 1
 ELEVENLABS_AGENT_ID = "agent_3401kjhc8whcfg9vf8aa0dt716yh"  # Paste your public ElevenLabs agent ID here to enable the Agent tab
 LIVE_FEED_URL = "/static/live_feed.jpg"  # Live snapshot from receivefeed.py
-
-# =========================
-# CAMERA CONFIG
-# =========================
-# Camera settings for Jetson Orin Nano
-CAMERA_SOURCES = [
-    # Try simple sources first
-    ("Simple /dev/video0", lambda: cv2.VideoCapture(0) if CAMERA_AVAILABLE else None),
-    ("Simple /dev/video1", lambda: cv2.VideoCapture(1) if CAMERA_AVAILABLE else None),
-]
-
-# GStreamer pipelines for Jetson
-if CAMERA_AVAILABLE:
-    CAMERA_SOURCES.extend([
-        ("nvarguscamerasrc (optimized)", 
-         lambda: cv2.VideoCapture(
-             "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=640, height=480, framerate=30/1 ! "
-             "nvvidconv ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink",
-             cv2.CAP_GSTREAMER
-         )),
-        ("v4l2src /dev/video0",
-         lambda: cv2.VideoCapture(
-             "v4l2src device=/dev/video0 ! video/x-raw, width=640, height=480, framerate=30/1 ! "
-             "videoconvert ! video/x-raw, format=BGR ! appsink",
-             cv2.CAP_GSTREAMER
-         )),
-    ])
-
-_camera = None
-
-def get_camera():
-    """Initialize and return camera object."""
-    global _camera
-    if _camera is not None:
-        return _camera
-    
-    if not CAMERA_AVAILABLE:
-        print("[WARN] OpenCV not installed or camera not available")
-        return None
-    
-    # Try each camera source
-    for name, factory in CAMERA_SOURCES:
-        try:
-            cap = factory()
-            if cap and cap.isOpened():
-                print(f"[INFO] Camera initialized: {name}")
-                _camera = cap
-                return _camera
-        except Exception as e:
-            print(f"[WARN] Failed to open camera ({name}): {e}")
-    
-    print("[WARN] Could not open any camera source")
-    return None
-
-def generate_video_frames():
-    """Generator function that yields JPEG frames from camera."""
-    cam = get_camera()
-    if cam is None:
-        return
-    
-    while True:
-        ret, frame = cam.read()
-        if not ret:
-            break
-        
-        # Encode frame as JPEG
-        ret, jpeg = cv2.imencode('.jpg', frame)
-        if ret:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n'
-                   b'Content-Length: ' + str(len(jpeg.tobytes())).encode() + b'\r\n\r\n'
-                   + jpeg.tobytes() + b'\r\n')
+RESET_SIGNAL_PATH = BASE_DIR / "static" / "reset_signal"
 
 # =========================
 # HELPERS
@@ -795,7 +718,10 @@ INDEX_HTML = """
       <section id="tab-posters" class="tab-panel">
         <div class="paper-head">
           <h2>Most Wanted</h2>
-          <div class="queue">Upload target: <code>{{ input_dir }}</code></div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="queue">Upload target: <code>{{ input_dir }}</code></div>
+            <button id="reset-btn" class="btn" type="button" style="border-color:rgba(200,60,40,.4);color:#e87060;">Reset Board</button>
+          </div>
         </div>
 
         <div id="gallery" class="grid{% if not images %} hidden{% endif %}">
@@ -881,9 +807,15 @@ INDEX_HTML = """
         </div>
 
         <div class="feed-shell">
-          <div class="feed-frame">
-            <img id="live-feed-img" src="/camera/stream" alt="Live camera feed">
-          </div>
+          {% if live_feed_url %}
+            <div class="feed-frame">
+              <img id="live-feed-img" src="{{ live_feed_url }}" alt="Live camera feed">
+            </div>
+          {% else %}
+            <div class="empty">
+              Add your stream URL to <code>LIVE_FEED_URL</code> in this file to display a live camera feed here.
+            </div>
+          {% endif %}
         </div>
       </section>
 
@@ -976,7 +908,21 @@ INDEX_HTML = """
       statusText.textContent = "Live stream reconnecting";
     };
 
-    // Live feed streams via MJPEG, no need for manual refresh
+    document.getElementById("reset-btn").addEventListener("click", () => {
+      fetch("/reset", { method: "POST" }).then(() => {
+        statusText.textContent = "Board reset — waiting for new arrivals";
+      });
+    });
+
+    // Auto-refresh live feed image every 500ms with cache busting
+    const liveFeedImg = document.getElementById("live-feed-img");
+    if (liveFeedImg) {
+      setInterval(() => {
+        const timestamp = new Date().getTime();
+        const baseUrl = liveFeedImg.src.split("?")[0];
+        liveFeedImg.src = `${baseUrl}?t=${timestamp}`;
+      }, 500);
+    }
   </script>
   {% if elevenlabs_agent_id %}
     <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
@@ -1039,20 +985,13 @@ def generated_file(filename: str):
     return send_from_directory(OUTPUT_DIR, filename)
 
 
-@app.get("/camera/stream")
-def camera_stream():
-    """Stream video from the connected camera as MJPEG."""
-    if not CAMERA_AVAILABLE:
-        return "OpenCV not installed", 400
-    
-    return Response(
-        generate_video_frames(),
-        mimetype="multipart/x-mixed-replace; boundary=frame",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+@app.post("/reset")
+def reset_board():
+    for f in OUTPUT_DIR.glob("*.jpg"):
+        f.unlink()
+    RESET_SIGNAL_PATH.touch()
+    print("[INFO] Board reset — signal sent to picwebtest")
+    return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":
