@@ -1,4 +1,3 @@
-# wantedGen
 # Distributed Edge AI Theft Detection System  
 
 Built at **CUHackit (24-hour hackathon)**, this project is a distributed edge-AI system for real-time laptop theft detection using two NVIDIA Jetson devices connected over Ethernet.
