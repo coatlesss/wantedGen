@@ -9,7 +9,11 @@ Built at **CUHackit (24-hour hackathon)**, this project is a distributed edge-AI
   
 ## 🎥 Demo
 
-Watch the demo video](./demo.mp4)
+<p align="center">
+  <a href="https://youtu.be/h1Q2PRY0r4c">
+    <img src="https://img.youtube.com/vi/h1Q2PRY0r4c/0.jpg" width="700">
+  </a>
+</p>
 
 ## Architecture
 We combined HPC-inspired distributed system design with edge AI by running all models locally.  
