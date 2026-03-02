@@ -989,6 +989,9 @@ def generated_file(filename: str):
 def reset_board():
     for f in OUTPUT_DIR.glob("*.jpg"):
         f.unlink()
+    for f in INPUT_DIR.iterdir():
+        if f.is_file() and allowed_file(f):
+            f.unlink()
     RESET_SIGNAL_PATH.touch()
     print("[INFO] Board reset — signal sent to picwebtest")
     return jsonify({"status": "ok"})
