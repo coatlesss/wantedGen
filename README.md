@@ -7,8 +7,8 @@ Built at **CUHackit (24-hour hackathon)**, this project is a distributed edge-AI
 - **Jetson B** performs facial recognition, image processing, and automatically generates a dynamic “wanted” poster.
 - The generated alert is published to a live website in real time.
   
-## 🎥 Demo
-
+## 🎥 Demo Video
+*click thumbnail to watch 
 <p align="center">
   <a href="https://youtu.be/h1Q2PRY0r4c">
     <img src="https://img.youtube.com/vi/h1Q2PRY0r4c/0.jpg" width="700">
