@@ -6,6 +6,10 @@ Built at **CUHackit (24-hour hackathon)**, this project is a distributed edge-AI
 - **Jetson A** runs YOLO for live object detection, event triggering, and suspect face cropping.
 - **Jetson B** performs facial recognition, image processing, and automatically generates a dynamic “wanted” poster.
 - The generated alert is published to a live website in real time.
+  
+## 🎥 Demo
+
+[Watch the demo video](./IMG_0798.mp4)
 
 ## Architecture
 We combined HPC-inspired distributed system design with edge AI by running all models locally.  
